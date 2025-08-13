@@ -1,0 +1,27 @@
+# Render service configuration for Snowflake MCP Server
+services:
+  - type: web
+    name: snowflake-mcp-server
+    env: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: starter
+    buildCommand: ""
+    startCommand: ""
+    envVars:
+      - key: SNOWFLAKE_ACCOUNT
+        value: NKELRFK-NB90244
+      - key: SNOWFLAKE_USER
+        value: N8N_SERVICE_USER
+      - key: SNOWFLAKE_PASSWORD
+        sync: false  # Set this as a secret in Render dashboard
+      - key: SNOWFLAKE_WAREHOUSE
+        value: BENBETTER_WH
+      - key: SNOWFLAKE_DATABASE
+        value: BENBETTER_GUIDES
+      - key: SNOWFLAKE_SCHEMA
+        value: BENEFIT_GUIDES_V2
+      - key: SNOWFLAKE_ROLE
+        value: N8N_ROLE
+      - key: PORT
+        value: 10000
