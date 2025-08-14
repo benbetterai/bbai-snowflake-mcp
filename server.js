@@ -82,23 +82,36 @@ class SnowflakeMCPServer {
             'Access-Control-Allow-Methods': '*'
           });
 
-          // Send tools list immediately in the format N8N expects
-          const toolsData = JSON.stringify({
-            type: "tools",
-            tools: this.tools
+          // Send MCP-compliant tools list that N8N expects
+          const mcpResponse = JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            result: {
+              tools: this.tools
+            }
           });
           
-          console.error('Sending tools list:', toolsData);
-          res.write(`data: ${toolsData}\n\n`);
+          console.error('Sending MCP tools response:', mcpResponse);
+          res.write(`data: ${mcpResponse}\n\n`);
 
-          // Send ready signal
-          const readyData = JSON.stringify({
-            type: "ready",
-            status: "connected"
+          // Send server capabilities
+          const capabilitiesResponse = JSON.stringify({
+            jsonrpc: "2.0", 
+            id: 2,
+            result: {
+              protocolVersion: "2024-11-05",
+              capabilities: {
+                tools: {}
+              },
+              serverInfo: {
+                name: "snowflake-mcp-server",
+                version: "1.0.0"
+              }
+            }
           });
           
-          console.error('Sending ready signal');
-          res.write(`data: ${readyData}\n\n`);
+          console.error('Sending capabilities response');
+          res.write(`data: ${capabilitiesResponse}\n\n`);
 
           // Set up heartbeat to keep connection alive
           let isActive = true;
