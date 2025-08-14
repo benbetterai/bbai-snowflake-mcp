@@ -43,10 +43,6 @@ class SnowflakeMCPServer {
             industry: {
               type: "string",
               description: "Industry to search"
-            },
-            size: {
-              type: "string", 
-              description: "Company size filter"
             }
           },
           required: ["industry"]
@@ -75,59 +71,66 @@ class SnowflakeMCPServer {
       if (parsedUrl.pathname === '/sse') {
         console.error('SSE connection requested');
         
-        // SSE endpoint for N8N - match HubSpot format
-        res.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': '*',
-          'Access-Control-Allow-Methods': '*'
-        });
+        try {
+          // SSE endpoint for N8N
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Allow-Methods': '*'
+          });
 
-        // Send server info immediately
-        const serverInfo = {
-          type: "server_info",
-          name: "snowflake-mcp-server",
-          version: "1.0.0",
-          capabilities: {
-            tools: true
-          }
-        };
-        res.write(`data: ${JSON.stringify(serverInfo)}\n\n`);
+          // Send tools list immediately in the format N8N expects
+          const toolsData = JSON.stringify({
+            type: "tools",
+            tools: this.tools
+          });
+          
+          console.error('Sending tools list:', toolsData);
+          res.write(`data: ${toolsData}\n\n`);
 
-        // Send tools list immediately 
-        const toolsMessage = {
-          type: "tools_list",
-          tools: this.tools
-        };
-        res.write(`data: ${JSON.stringify(toolsMessage)}\n\n`);
+          // Send ready signal
+          const readyData = JSON.stringify({
+            type: "ready",
+            status: "connected"
+          });
+          
+          console.error('Sending ready signal');
+          res.write(`data: ${readyData}\n\n`);
 
-        // Send ready signal
-        const readyMessage = {
-          type: "ready",
-          message: "MCP server ready"
-        };
-        res.write(`data: ${JSON.stringify(readyMessage)}\n\n`);
+          // Set up heartbeat to keep connection alive
+          let isActive = true;
+          const heartbeatInterval = setInterval(() => {
+            if (isActive) {
+              const heartbeat = JSON.stringify({
+                type: "heartbeat",
+                timestamp: Date.now()
+              });
+              res.write(`data: ${heartbeat}\n\n`);
+              console.error('Sent heartbeat');
+            }
+          }, 30000);
 
-        // Keep connection alive with heartbeat
-        const heartbeat = setInterval(() => {
-          const pingMessage = {
-            type: "ping",
-            timestamp: new Date().toISOString()
-          };
-          res.write(`data: ${JSON.stringify(pingMessage)}\n\n`);
-        }, 30000);
+          // Clean up on connection close
+          req.on('close', () => {
+            console.error('SSE connection closed by client');
+            isActive = false;
+            clearInterval(heartbeatInterval);
+          });
 
-        req.on('close', () => {
-          console.error('SSE connection closed');
-          clearInterval(heartbeat);
-        });
+          req.on('error', (err) => {
+            console.error('SSE connection error:', err);
+            isActive = false;
+            clearInterval(heartbeatInterval);
+          });
 
-        req.on('error', (err) => {
-          console.error('SSE connection error:', err);
-          clearInterval(heartbeat);
-        });
+        } catch (error) {
+          console.error('SSE endpoint error:', error);
+          res.writeHead(500);
+          res.end('SSE Error');
+        }
 
       } else if (parsedUrl.pathname === '/' && req.method === 'POST') {
         // Handle MCP JSON-RPC requests
