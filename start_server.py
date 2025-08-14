@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SSE-enabled HTTP server for Snowflake MCP
-Supports Server-Sent Events for N8N MCP Client compatibility
+N8N-compatible MCP server for Snowflake
+Provides both standard HTTP endpoints and SSE for N8N MCP Client
 """
 
 import os
@@ -10,7 +10,7 @@ import asyncio
 from typing import Any, Dict
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 import uvicorn
 
 app = FastAPI(title="Snowflake MCP Server", version="1.0.0")
@@ -24,71 +24,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MCP Protocol Methods
-MCP_METHODS = {
-    "initialize": {
-        "description": "Initialize MCP connection",
-        "capabilities": {
-            "tools": {
-                "cortex_search": {
-                    "description": "Search through benefit guide text content"
+# Available tools definition
+AVAILABLE_TOOLS = [
+    {
+        "name": "cortex_search",
+        "description": "Search through employer benefit guide text content",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for benefit guides"
                 }
-            }
+            },
+            "required": ["query"]
         }
-    },
-    "tools/list": {
-        "tools": [
-            {
-                "name": "cortex_search",
-                "description": "Search through employer benefit guide text content",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query for benefit guides"
-                        }
-                    },
-                    "required": ["query"]
-                }
-            }
-        ]
-    },
-    "tools/call": {
-        "description": "Execute tool calls"
     }
-}
-
-async def generate_sse_response():
-    """Generate Server-Sent Events for MCP protocol"""
-    
-    # Send initial connection message
-    yield f"data: {json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'server/ready'})}\n\n"
-    
-    # Keep connection alive
-    while True:
-        await asyncio.sleep(30)  # Send heartbeat every 30 seconds
-        yield f"data: {json.dumps({'jsonrpc': '2.0', 'method': 'ping'})}\n\n"
+]
 
 @app.get("/")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "Snowflake MCP Server", "protocol": "SSE"}
+    return {"status": "healthy", "service": "Snowflake MCP Server", "protocol": "HTTP+SSE"}
 
-@app.get("/sse")
-async def sse_endpoint():
-    """Server-Sent Events endpoint for N8N MCP Client"""
-    return StreamingResponse(
-        generate_sse_response(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Methods": "*"
-        }
-    )
+@app.get("/tools")
+async def list_tools():
+    """List available MCP tools for N8N discovery"""
+    return {
+        "tools": AVAILABLE_TOOLS,
+        "version": "1.0.0",
+        "server": "snowflake-mcp"
+    }
+
+@app.get("/mcp/tools")
+async def mcp_list_tools():
+    """Alternative MCP tools endpoint"""
+    return {"tools": AVAILABLE_TOOLS}
 
 @app.post("/")
 async def mcp_jsonrpc(request: Request):
@@ -114,24 +85,7 @@ async def mcp_jsonrpc(request: Request):
             }
             
         elif method == "tools/list":
-            response["result"] = {
-                "tools": [
-                    {
-                        "name": "cortex_search",
-                        "description": "Search through employer benefit guide text content",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "query": {
-                                    "type": "string",
-                                    "description": "Search query for benefit guides"
-                                }
-                            },
-                            "required": ["query"]
-                        }
-                    }
-                ]
-            }
+            response["result"] = {"tools": AVAILABLE_TOOLS}
             
         elif method == "tools/call":
             tool_name = params.get("name")
@@ -139,7 +93,7 @@ async def mcp_jsonrpc(request: Request):
             
             if tool_name == "cortex_search":
                 query = arguments.get("query", "")
-                # Simulate search results
+                # Simulate search results for now
                 response["result"] = {
                     "content": [
                         {
@@ -176,19 +130,61 @@ async def mcp_jsonrpc(request: Request):
             }
         }
 
-@app.get("/tools")
-async def list_tools():
-    """List available MCP tools (for testing)"""
-    return {
-        "tools": [
-            {
-                "name": "cortex_search",
-                "description": "Search through benefit guide text content",
-                "database": "BENBETTER_GUIDES",
-                "schema": "BENEFIT_GUIDES_V2"
+@app.post("/tools/call")
+async def direct_tool_call(request: Request):
+    """Direct tool call endpoint for N8N"""
+    try:
+        body = await request.json()
+        tool_name = body.get("tool")
+        arguments = body.get("arguments", {})
+        
+        if tool_name == "cortex_search":
+            query = arguments.get("query", "")
+            return {
+                "success": True,
+                "result": f"Search Results for '{query}': Found 3 companies with matching benefits.",
+                "data": {
+                    "companies": [
+                        {"name": "Manufacturing Corp", "benefit": "Comprehensive wellness programs"},
+                        {"name": "Industrial Solutions LLC", "benefit": "Mental health benefits"},
+                        {"name": "Production Inc", "benefit": "Employee assistance programs"}
+                    ]
+                }
             }
-        ]
-    }
+        else:
+            return {"success": False, "error": f"Unknown tool: {tool_name}"}
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+async def generate_sse_response():
+    """Generate Server-Sent Events for MCP protocol"""
+    
+    # Send initial connection message
+    yield f"data: {json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'server/ready'})}\\n\\n"
+    
+    # Send tools list immediately
+    yield f"data: {json.dumps({'jsonrpc': '2.0', 'method': 'tools/list', 'result': {'tools': AVAILABLE_TOOLS}})}\\n\\n"
+    
+    # Keep connection alive with heartbeat
+    while True:
+        await asyncio.sleep(30)
+        yield f"data: {json.dumps({'jsonrpc': '2.0', 'method': 'ping'})}\\n\\n"
+
+@app.get("/sse")
+async def sse_endpoint():
+    """Server-Sent Events endpoint for N8N MCP Client"""
+    return StreamingResponse(
+        generate_sse_response(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Methods": "*"
+        }
+    )
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
