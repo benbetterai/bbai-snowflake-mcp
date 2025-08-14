@@ -1,0 +1,19 @@
+# Node.js MCP server (for direct GitHub integration, not Render)
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY src/ ./src/
+
+# Make the script executable
+RUN chmod +x src/index.js
+
+# Default command
+CMD ["npm", "start"]
