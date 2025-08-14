@@ -1,0 +1,66 @@
+# Snowflake MCP Server Configuration for BenBetter.ai
+# This configures Cortex Search and Analyst for your benefit guides data
+
+cortex_search:
+  - name: "benefit_guides_search"
+    description: "Search through employer benefit guide text content"
+    database: "BENBETTER_GUIDES"
+    schema: "BENEFIT_GUIDES_V2"
+    service: "BENEFIT_GUIDES_SEARCH_SERVICE"
+    columns:
+      - "NAME"
+      - "PRIMARY_INDUSTRY"
+      - "RAW_TXT_CONTENT"
+    where_clause: "RAW_TXT_CONTENT IS NOT NULL"
+
+cortex_analyst:
+  - name: "benefit_guides_analyst"
+    description: "Analyze structured benefit guide data using natural language"
+    database: "BENBETTER_GUIDES"
+    schema: "BENEFIT_GUIDES_V2"
+    semantic_model: |
+      # Semantic model for BenBetter.ai benefit guides
+      # Allows natural language queries on structured data
+      
+      tables:
+        - name: "EMPLOYER_BENEFIT_GUIDES"
+          description: "Main table with employer information and benefit guides"
+          columns:
+            - name: "NAME"
+              description: "Company name"
+            - name: "PRIMARY_INDUSTRY" 
+              description: "Company industry classification"
+            - name: "SIZE"
+              description: "Employee count range"
+            - name: "PLAN_YEAR"
+              description: "Year the benefit guide applies to"
+            - name: "RAW_TXT_CONTENT"
+              description: "Full text content from benefit guides"
+        
+        - name: "MEDICAL_PLANS"
+          description: "Medical insurance plan details"
+          columns:
+            - name: "VENDOR_NAME"
+              description: "Insurance carrier name"
+            - name: "PLAN_TYPE"
+              description: "Plan type (HDHP, PPO, HMO, etc.)"
+            - name: "MONTHLY_PREMIUM_EMPLOYEE"
+              description: "Monthly premium cost for employee"
+            - name: "DEDUCTIBLE_INDIVIDUAL"
+              description: "Individual deductible amount"
+        
+        - name: "RETIREMENT_PLANS"
+          description: "401k and retirement plan details"
+          columns:
+            - name: "PLAN_TYPE"
+              description: "Type of retirement plan"
+            - name: "EMPLOYER_MATCH_FORMULA"
+              description: "Employer matching contribution formula"
+        
+        - name: "PTO_LEAVE_POLICIES"
+          description: "Paid time off and leave policies"
+          columns:
+            - name: "PLAN_TYPE"
+              description: "Type of PTO plan"
+            - name: "ACCRUAL_RATE_DESCRIPTION"
+              description: "How PTO is earned"

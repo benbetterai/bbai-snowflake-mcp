@@ -1,0 +1,9 @@
+# Python dependencies for Snowflake MCP Server
+fastapi==0.104.1
+uvicorn==0.24.0
+snowflake-connector-python==3.6.0
+pydantic==2.5.0
+cryptography==41.0.7
+pyyaml==6.0.1
+httpx==0.25.2
+asyncio==3.4.3

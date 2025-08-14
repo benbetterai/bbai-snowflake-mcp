@@ -43,10 +43,6 @@ class SnowflakeMCPServer {
             industry: {
               type: "string",
               description: "Industry to search"
-            },
-            size: {
-              type: "string", 
-              description: "Company size filter"
             }
           },
           required: ["industry"]
@@ -76,7 +72,7 @@ class SnowflakeMCPServer {
         console.error('SSE connection requested');
         
         try {
-          // SSE endpoint for N8N - enhanced format with event names and multiple message types
+          // SSE endpoint for N8N
           res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -86,18 +82,24 @@ class SnowflakeMCPServer {
             'Access-Control-Allow-Methods': '*'
           });
 
-          // Send initialization sequence that N8N expects
-          
-          // 1. Send connection established
-          res.write(`event: connect\ndata: {"status":"connected","timestamp":"${new Date().toISOString()}"}\n\n`);
-          console.error('Sent connect event');
-
-          // 2. Send server identification
-          const serverInfo = JSON.stringify({
+          // Send MCP-compliant tools list that N8N expects
+          const mcpResponse = JSON.stringify({
             jsonrpc: "2.0",
             id: 1,
             result: {
-              protocolVersion: "2024-11-05", 
+              tools: this.tools
+            }
+          });
+          
+          console.error('Sending MCP tools response:', mcpResponse);
+          res.write(`data: ${mcpResponse}\n\n`);
+
+          // Send server capabilities
+          const capabilitiesResponse = JSON.stringify({
+            jsonrpc: "2.0", 
+            id: 2,
+            result: {
+              protocolVersion: "2024-11-05",
               capabilities: {
                 tools: {}
               },
@@ -107,74 +109,20 @@ class SnowflakeMCPServer {
               }
             }
           });
-          res.write(`event: initialize\ndata: ${serverInfo}\n\n`);
-          console.error('Sent initialize event');
-
-          // 3. Send tools in multiple formats to ensure compatibility
           
-          // Standard MCP JSON-RPC format
-          const mcpToolsResponse = JSON.stringify({
-            jsonrpc: "2.0",
-            id: 2,
-            result: {
-              tools: this.tools
-            }
-          });
-          res.write(`event: tools\ndata: ${mcpToolsResponse}\n\n`);
-          console.error('Sent MCP tools event');
-
-          // Simple tools_list format (backup)
-          const simpleTools = JSON.stringify({
-            type: "tools_list",
-            tools: this.tools
-          });
-          res.write(`event: tools_list\ndata: ${simpleTools}\n\n`);
-          console.error('Sent simple tools_list event');
-
-          // Individual tool events (another attempt)
-          this.tools.forEach((tool, index) => {
-            const toolEvent = JSON.stringify({
-              type: "tool_available",
-              tool: tool
-            });
-            res.write(`event: tool_${index}\ndata: ${toolEvent}\n\n`);
-          });
-          console.error('Sent individual tool events');
-
-          // 4. Send ready notification
-          const readyMessage = JSON.stringify({
-            jsonrpc: "2.0",
-            method: "notifications/initialized",
-            params: {
-              status: "ready",
-              tools_count: this.tools.length,
-              message: "MCP server ready with tools"
-            }
-          });
-          res.write(`event: ready\ndata: ${readyMessage}\n\n`);
-          console.error('Sent ready event');
-
-          // 5. Send tools summary for dropdown
-          const toolsSummary = JSON.stringify({
-            available_tools: this.tools.map(t => ({
-              name: t.name,
-              description: t.description
-            }))
-          });
-          res.write(`event: tools_summary\ndata: ${toolsSummary}\n\n`);
-          console.error('Sent tools_summary event');
+          console.error('Sending capabilities response');
+          res.write(`data: ${capabilitiesResponse}\n\n`);
 
           // Set up heartbeat to keep connection alive
           let isActive = true;
           const heartbeatInterval = setInterval(() => {
             if (isActive) {
               const heartbeat = JSON.stringify({
-                type: "ping",
-                timestamp: new Date().toISOString(),
-                tools_available: this.tools.length
+                type: "heartbeat",
+                timestamp: Date.now()
               });
-              res.write(`event: ping\ndata: ${heartbeat}\n\n`);
-              console.error('Sent heartbeat with tools count');
+              res.write(`data: ${heartbeat}\n\n`);
+              console.error('Sent heartbeat');
             }
           }, 30000);
 
@@ -227,18 +175,13 @@ class SnowflakeMCPServer {
         });
 
       } else if (parsedUrl.pathname === '/' && req.method === 'GET') {
-        // Health check with tools info
+        // Health check
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: "healthy",
           service: "Snowflake MCP Server",
           version: "1.0.0",
-          tools_count: this.tools.length,
-          available_tools: this.tools.map(t => t.name),
-          endpoints: {
-            sse: "/sse",
-            jsonrpc: "/ (POST)"
-          }
+          tools_count: this.tools.length
         }));
 
       } else {
@@ -249,7 +192,6 @@ class SnowflakeMCPServer {
 
     httpServer.listen(port, '0.0.0.0', () => {
       console.error(`Snowflake MCP server running on HTTP port ${port}`);
-      console.error(`Tools available: ${this.tools.map(t => t.name).join(', ')}`);
     });
   }
 
