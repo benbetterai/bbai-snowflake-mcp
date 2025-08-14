@@ -206,10 +206,10 @@ class SnowflakeMCPServer {
         
       case "tools/call":
         const toolName = params.name;
-        const arguments = params.arguments || {};
+        const toolArgs = params.arguments || {};
         
         if (toolName === "cortex_search") {
-          const query = arguments.query || "";
+          const query = toolArgs.query || "";
           response.result = {
             content: [
               {
@@ -219,7 +219,7 @@ class SnowflakeMCPServer {
             ]
           };
         } else if (toolName === "benefits_analysis") {
-          const query = arguments.query || "";
+          const query = toolArgs.query || "";
           response.result = {
             content: [
               {
@@ -229,7 +229,7 @@ class SnowflakeMCPServer {
             ]
           };
         } else if (toolName === "company_search") {
-          const industry = arguments.industry || "";
+          const industry = toolArgs.industry || "";
           response.result = {
             content: [
               {
